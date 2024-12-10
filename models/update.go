@@ -4,6 +4,7 @@ import (
 	"fmt"
 )
 
+const UPDATE_TYPE_START = "start"
 const UPDATE_TYPE_STEP = "step"
 const UPDATE_TYPE_END = "end"
 const UPDATE_TYPE_LABEL = "label"
@@ -17,6 +18,9 @@ type Update struct {
 
 	// update type: step, label or end
 	UpdateType string `json:"updateType"`
+
+	// start metadata
+	CreationTime int64 `json:"creationTime"`
 
 	// step metadata
 	Timestamp int64 `json:"timestamp"`

@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"os"
 	"owl_server/models"
+	"time"
+
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -28,7 +30,7 @@ type MongoDB struct {
 //
 // Returns an error if any of these steps fail.
 func (db *MongoDB) Connect() error {
-	log.Println("Connecting to mongodb.")
+	// log.Println("Connecting to mongodb.")
 	var uri, err = getConnectionString()
 	if err != nil {
 		return err
@@ -50,7 +52,7 @@ func (db *MongoDB) Connect() error {
 		return fmt.Errorf("could not open the collection %v", USER)
 	}
 
-	log.Println("Connected to mongodb.")
+	// log.Println("Connected to mongodb.")
 	return nil
 }
 
@@ -60,13 +62,13 @@ func (db *MongoDB) Disconnect() error {
 	if db.client == nil {
 		return nil
 	}
-	log.Println("Disconnecting from mongodb")
+	// log.Println("Disconnecting from mongodb")
 	err := db.client.Disconnect(context.TODO())
 	if err != nil {
 		log.Println(err)
 		return err
 	}
-	log.Println("Disconnected from mongodb")
+	// log.Println("Disconnected from mongodb")
 	return nil
 }
 
@@ -92,18 +94,18 @@ func getConnectionString() (string, error) {
 // Creates an stores the event in the database.
 // Returns an error if the db insertion fails.
 func (db *MongoDB) createEvent(eventName string, eventId string) error {
-	log.Printf("Creating event %v, %v", eventName, eventId)
+	// log.Printf("Creating event %v, %v", eventName, eventId)
 	query := bson.M{
 		"_id": GetID(eventName, eventId),
 		"name": eventName,
 		"steps": []interface{}{},
 		"result": nil,
 	}
-	result, err := db.collection.InsertOne(context.TODO(), query)
+	_, err := db.collection.InsertOne(context.TODO(), query)
 	if err != nil {
 		return err
 	}
-	log.Printf("Inserted ID: %v", result.InsertedID)
+	// log.Printf("Inserted ID: %v", result.InsertedID)
 	return nil
 }
 
@@ -114,7 +116,7 @@ func (db *MongoDB) createEvent(eventName string, eventId string) error {
 // However, if the retrieval succeeds but there is no event with that (name, ID)
 // in the database, it returns (nil, nil)
 func (db *MongoDB) getEvent(eventName string, eventId string) (*Event, error) {
-	log.Printf("Getting event %v, %v", eventName, eventId)
+	// log.Printf("Getting event %v, %v", eventName, eventId)
 
 	query := bson.M{"_id": GetID(eventName, eventId)}
 	result := db.collection.FindOne(context.TODO(), query)
@@ -123,12 +125,12 @@ func (db *MongoDB) getEvent(eventName string, eventId string) (*Event, error) {
 	err := result.Decode(&event)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			log.Printf("Found no event with that name")
+			// log.Printf("Found no event with that name")
 			return nil, nil
 		}
 		return nil, err
 	}
-	log.Printf("Got event %v", event)
+	// log.Printf("Got event %v", event)
 	return &event, nil
 }
 
@@ -140,7 +142,7 @@ func (db *MongoDB) getEvent(eventName string, eventId string) (*Event, error) {
 // If any error occurs during the insertion of the update
 // to the db, an error is returned as well.
 func (db *MongoDB) InsertUpdate(update models.Update) error {
-	log.Printf("Inserting update %s\n", update)
+	// log.Printf("Inserting update %s\n", update)
 	// Get or create event
 	event, err := db.getEvent(update.EventName, update.EventId)
 	if err != nil {
@@ -153,6 +155,8 @@ func (db *MongoDB) InsertUpdate(update models.Update) error {
 		}
 	}
 	switch update.UpdateType {
+	case models.UPDATE_TYPE_START:
+		return db.insertStartUpdate(update)
 	case models.UPDATE_TYPE_STEP:
 		return db.insertStepUpdate(update)
 	case models.UPDATE_TYPE_LABEL:
@@ -162,6 +166,30 @@ func (db *MongoDB) InsertUpdate(update models.Update) error {
 	default:
 		return fmt.Errorf("unknown update: %v", update.UpdateType)
 	}
+}
+
+// Inserts the start update to the database
+func (db *MongoDB) insertStartUpdate(update models.Update) error {
+	// A start is basically a step, with an extra field "creationTime"
+	err := db.insertStepUpdate(update)
+	if err != nil {
+		return err
+	}
+	
+	// update creation time. The event should have been created already
+	creationTime := time.UnixMilli(update.CreationTime * 1000)
+	log.Printf("Updating creation time %v, %v for event %v", update.CreationTime * 1000, creationTime.Format("2006-01-02 15:04:05"), GetID(update.EventName, update.EventId))
+	filter := bson.M{
+		"_id": GetID(update.EventName, update.EventId),
+	}
+	query := bson.M{
+		"$set": bson.M{
+			"creationTime": creationTime,
+		},
+	}
+	res, err := db.collection.UpdateOne(context.TODO(), filter, query)
+	log.Printf("Update result: %v", res)
+	return err
 }
 
 // Inserts the step update to the database.
@@ -174,14 +202,14 @@ func (db *MongoDB) insertStepUpdate(update models.Update) error {
 // When the step update will be inserted, the timestamp will be updated.
 func (db *MongoDB) insertLabelUpdate(update models.Update) error {
 	// If step doesn't exist yet, create it
-	log.Printf("Creating corresponding step %v, %v (if it doesn't exist)", update.StepName, update.StepNumber)
+	// log.Printf("Creating corresponding step %v, %v (if it doesn't exist)", update.StepName, update.StepNumber)
 	err := db.createStep(update.EventName, update.EventId, update.StepName, update.StepNumber, -1)
 	if (err != nil) {
 		return err
 	}
 
 	// retrieve the step
-	log.Printf("Retrieving corresponding step %v, %v", update.StepName, update.StepNumber)
+	// log.Printf("Retrieving corresponding step %v, %v", update.StepName, update.StepNumber)
 	step, err := db.getStep(update.EventName, update.EventId, update.StepNumber)
 	if err != nil {
 		return err
@@ -197,7 +225,7 @@ func (db *MongoDB) insertLabelUpdate(update models.Update) error {
 			// update the label value
 			// Note: Since these updates can come out of order, there's no guarantee that
 			// this will be the latest label value
-			log.Printf("Label %v, %v had already been inserted in the db. Will override", update.LabelKey, update.LabelVal)
+			// log.Printf("Label %v, %v had already been inserted in the db. Will override", update.LabelKey, update.LabelVal)
 
 			filter := bson.M{
 				"_id": GetID(update.EventName, update.EventId),
@@ -222,7 +250,7 @@ func (db *MongoDB) insertLabelUpdate(update models.Update) error {
 	}
 
 	// New label. Create it
-	log.Printf("Label %v, %v is new. Creating it and inserting into the db", update.LabelKey, update.LabelVal)
+	// log.Printf("Label %v, %v is new. Creating it and inserting into the db", update.LabelKey, update.LabelVal)
 	filter := bson.M{
         "_id": GetID(update.EventName, update.EventId),
         "steps.number": update.StepNumber,
@@ -247,14 +275,14 @@ func (db *MongoDB) insertLabelUpdate(update models.Update) error {
 // Returns an error if any of these steps failed.
 func (db *MongoDB) insertEndUpdate(update models.Update) error {
 	// Add end step
-	log.Println("Creating end step")
+	// log.Println("Creating end step")
 	err := db.createStep(update.EventName, update.EventId, "end", update.StepNumber, update.Timestamp)
 	if err != nil {
 		return err
 	}
 
 	// Save result
-	log.Printf("Saving result %s", update.Result)
+	// log.Printf("Saving result %s", update.Result)
 	filter := bson.M{
 		"_id": GetID(update.EventName, update.EventId),
 	}
@@ -272,7 +300,7 @@ func (db *MongoDB) insertEndUpdate(update models.Update) error {
 // If there is an error retrieving the step, the error is returned.
 // Otherwise a pointer to the given step is returned.
 func (db *MongoDB) getStep(eventName string, eventId string, stepNumber int) (*Step, error) {
-	log.Printf("Looking for step #%d in the database", stepNumber)
+	// log.Printf("Looking for step #%d in the database", stepNumber)
 	event, err := db.getEvent(eventName, eventId)
 	if err != nil {
 		return nil, err
@@ -283,7 +311,7 @@ func (db *MongoDB) getStep(eventName string, eventId string, stepNumber int) (*S
 
 	for _, step := range event.Steps {
 		if step.Number == stepNumber {
-			log.Printf("Step retrieved: %v", step)
+			// log.Printf("Step retrieved: %v", step)
 			return &step, nil
 		}
 	}
@@ -295,7 +323,7 @@ func (db *MongoDB) getStep(eventName string, eventId string, stepNumber int) (*S
 // the timestamp is updated.
 // Returns an error if any of these steps fails
 func (db *MongoDB) createStep(eventName string, eventId string, stepName string, stepNumber int, timestamp int64) error {
-	log.Printf("Creating step %s", stepName)
+	// log.Printf("Creating step %s", stepName)
 	step, err := db.getStep(eventName, eventId, stepNumber)
 	if err != nil {
 		return err
@@ -307,7 +335,7 @@ func (db *MongoDB) createStep(eventName string, eventId string, stepName string,
 		if (step.Timestamp == -1) {
 			// step was previously added by a label,
 			// so it has no timestamp. Update the timestamp
-			log.Printf("step %s had no timestamp. Updating the timestamp", stepName)
+			// log.Printf("step %s had no timestamp. Updating the timestamp", stepName)
 			query := bson.M{
 				"$set": bson.M{
 					"steps.$[elem].timestamp": timestamp,
@@ -321,7 +349,7 @@ func (db *MongoDB) createStep(eventName string, eventId string, stepName string,
 			return err
 		}
 		// step already exists. Return
-		log.Printf("step %s already exists", stepName)
+		// log.Printf("step %s already exists", stepName)
 		return nil
 	}
 
@@ -338,7 +366,7 @@ func (db *MongoDB) createStep(eventName string, eventId string, stepName string,
     }
 
     _, err = db.collection.UpdateOne(context.TODO(), filter, update)
-	log.Printf("step %s created", stepName)
+	// log.Printf("step %s created", stepName)
 	return err
 }
 

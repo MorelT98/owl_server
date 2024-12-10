@@ -45,14 +45,14 @@ func PostUpdates(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		err := database.Disconnect()
 		if err != nil {
-			log.Fatalf("error while saving update: %s", err)
+			log.Fatalf("error while disconnecting: %s", err)
 		}
 	}()
 
 	for _, update := range updates {
 		err := database.InsertUpdate(update)
 		if err != nil {
-			log.Printf("error while saving update: %s\n", err)
+			log.Printf("error while saving update: %s, update=%v\n", err, update)
 		}
 	}
 
