@@ -2,8 +2,11 @@ package mongodb
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
+	"os"
 	"owl_server/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -26,12 +29,13 @@ type MongoDB struct {
 // Returns an error if any of these steps fail.
 func (db *MongoDB) Connect() error {
 	log.Println("Connecting to mongodb.")
-	var uri string = fmt.Sprintf("mongodb://localhost:%d", PORT)
+	var uri, err = getConnectionString()
+	if err != nil {
+		return err
+	}
+
 	clientOptions := options.Client().ApplyURI(uri)
-
-	var err error
 	db.client, err = mongo.Connect(context.TODO(), clientOptions)
-
 	if err != nil {
 		return err
 	}
@@ -64,6 +68,25 @@ func (db *MongoDB) Disconnect() error {
 	}
 	log.Println("Disconnected from mongodb")
 	return nil
+}
+
+type ConnectionConfig struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+	RemainingURI string `json:remainingURI`
+}
+
+func getConnectionString() (string, error) {
+	configString, err := os.ReadFile("mongodbConnectionConfig.json")
+	if err != nil {
+		return "", fmt.Errorf("unable to retrieve connection string. Underlying error: %s", err.Error())
+	}
+	var config ConnectionConfig
+	err = json.Unmarshal(configString, &config)
+	if err != nil {
+		return "", fmt.Errorf("unable to retrieve connection string. Underlying error: %s", err.Error())
+	}
+	return "mongodb+srv://" + config.Username + ":" + url.QueryEscape(config.Password) + "@" + config.RemainingURI, nil
 }
 
 // Creates an stores the event in the database.

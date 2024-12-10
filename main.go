@@ -1,13 +1,13 @@
 package main
 
-import(
+import (
 	"fmt"
 	"log"
 	"net/http"
 	"owl_server/handlers"
 )
 
-const PORT int = 3000
+const PORT int = 3030
 
 func main() {
 	http.HandleFunc("/receive", handlers.PostUpdates)
