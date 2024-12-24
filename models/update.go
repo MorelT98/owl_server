@@ -19,9 +19,6 @@ type Update struct {
 	// update type: step, label or end
 	UpdateType string `json:"updateType"`
 
-	// start metadata
-	CreationTime int64 `json:"creationTime"`
-
 	// step metadata
 	Timestamp int64 `json:"timestamp"`
 	StepNumber int `json:"stepNumber"`
@@ -40,9 +37,9 @@ func (u Update) String() string {
 		case "step":
 			return fmt.Sprintf("Step{name: %s, number: %d, eventName: %s, eventId: %s, timeStamp: %d}", u.StepName, u.StepNumber, u.EventName, u.EventId, u.Timestamp)
 		case "label":
-			return fmt.Sprintf("Label{key: %s, val: %s, stepName: %s, stepNumber: %d, eventName: %s, eventId: %s}", u.LabelKey, u.LabelVal, u.StepName, u.StepNumber, u.EventName, u.EventId)
+			return fmt.Sprintf("Label{key: %s, val: %s, stepName: %s, stepNumber: %d, eventName: %s, eventId: %s, step timestamp: %d}", u.LabelKey, u.LabelVal, u.StepName, u.StepNumber, u.EventName, u.EventId, u.Timestamp)
 		case "end":
-			return fmt.Sprintf("End{result: %s, number: %d, eventName: %s, eventId: %s, timeStamp: %d}", u.Result, u.StepNumber, u.EventName, u.EventId,u.Timestamp)
+			return fmt.Sprintf("End{result: %s, number: %d, eventName: %s, eventId: %s, timeStamp: %d}", u.Result, u.StepNumber, u.EventName, u.EventId, u.Timestamp)
 		default:
 			return fmt.Sprintf("BrokenUpdate{updateType: %s}", u.UpdateType)
 	}

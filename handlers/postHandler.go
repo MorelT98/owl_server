@@ -6,7 +6,8 @@ import (
 	"log"
 	"net/http"
 	"owl_server/db"
-	"owl_server/db/mongodb"
+	// "owl_server/db/mongodb"
+	"owl_server/db/timescaledb"
 	"owl_server/models"
 )
 
@@ -36,7 +37,7 @@ func PostUpdates(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// db logic
-	var database db.DB = &mongodb.MongoDB{}
+	var database db.DB = &timescaledb.TimescaleDB{}
 	err = database.Connect()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

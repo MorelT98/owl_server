@@ -79,7 +79,7 @@ type ConnectionConfig struct {
 }
 
 func getConnectionString() (string, error) {
-	configString, err := os.ReadFile("mongodbConnectionConfig.json")
+	configString, err := os.ReadFile("connectionConfigs/mongodbConnectionConfig.json")
 	if err != nil {
 		return "", fmt.Errorf("unable to retrieve connection string. Underlying error: %s", err.Error())
 	}
@@ -170,15 +170,15 @@ func (db *MongoDB) InsertUpdate(update models.Update) error {
 
 // Inserts the start update to the database
 func (db *MongoDB) insertStartUpdate(update models.Update) error {
-	// A start is basically a step, with an extra field "creationTime"
+	// A start is basically a step
 	err := db.insertStepUpdate(update)
 	if err != nil {
 		return err
 	}
 	
 	// update creation time. The event should have been created already
-	creationTime := time.UnixMilli(update.CreationTime * 1000)
-	log.Printf("Updating creation time %v, %v for event %v", update.CreationTime * 1000, creationTime.Format("2006-01-02 15:04:05"), GetID(update.EventName, update.EventId))
+	creationTime := time.UnixMilli(update.Timestamp * 1000)
+	log.Printf("Updating creation time %v, %v for event %v", update.Timestamp * 1000, creationTime.Format("2006-01-02 15:04:05"), GetID(update.EventName, update.EventId))
 	filter := bson.M{
 		"_id": GetID(update.EventName, update.EventId),
 	}
