@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"owl_server/models"
@@ -62,7 +63,9 @@ func (db *TimescaleDB) Disconnect() error {
 	if db.dbPool == nil {
 		return nil
 	}
+	log.Printf("Disconnecting from the database...")
 	db.dbPool.Close()
+	log.Printf("Disconnected successfully.")
 	return nil
 }
 
